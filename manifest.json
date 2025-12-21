@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Youtube Study Memo",
+  "version": "1.0",
+  "permissions": ["activeTab", "scripting"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/watch*"],
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ],
+  "host_permissions": [
+    "https://script.google.com/*"
+  ]
+}
