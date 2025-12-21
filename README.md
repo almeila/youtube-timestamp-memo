@@ -1,4 +1,5 @@
 # YouTube Timestamp Memo
+<img width="700" alt="Image" src="https://github.com/user-attachments/assets/d92f63f9-0952-4bd9-9fce-56f083ad3022" />
 
 YouTubeで動画を見ながら、タイムスタンプ付きのメモを簡単に保存できるChrome拡張機能です。
 保存したメモはGoogleスプレッドシートに記録され、後から見返すことができます。
