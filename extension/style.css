@@ -1,7 +1,7 @@
-/* サイドパネルのスタイル（右端固定） */
+/* サイドパネル本体 */
 #yt-memo-panel {
   position: fixed;
-  top: 56px; /* Youtubeのヘッダー高さに合わせる */
+  top: 56px;
   right: 0;
   width: 320px;
   height: calc(100vh - 56px);
@@ -13,21 +13,43 @@
   flex-direction: column;
   box-sizing: border-box;
   font-family: Roboto, Arial, sans-serif;
-  transition: transform 0.2s ease-in-out; /* スムーズなアニメーション */
+  transition: transform 0.2s ease-in-out;
 }
 
-/* 隠すときは画面外へスライド */
 #yt-memo-panel.hidden {
   transform: translateX(320px);
 }
 
-/* 入力エリア */
+/* ヘッダー（シンプルにタイトルと閉じるボタンのみ） */
+#yt-memo-header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* 両端揃え */
+  padding: 0 15px;
+  border-bottom: 1px solid #333;
+  background: #1f1f1f;
+  font-size: 14px;
+  color: #eee;
+  font-weight: 500;
+}
+
+#yt-memo-close {
+  cursor: pointer;
+  font-size: 18px;
+  color: #aaa;
+  padding: 5px;
+}
+#yt-memo-close:hover { color: white; }
+
+/* 入力エリア全体 */
 #yt-memo-input-area {
   padding: 15px;
   border-bottom: 1px solid #333;
   background: #0f0f0f;
 }
 
+/* テキストエリア */
 #yt-memo-text {
   width: 100%;
   height: 70px;
@@ -36,15 +58,44 @@
   border: 1px solid #444;
   border-radius: 4px;
   padding: 8px;
-  margin-bottom: 5px;
+  margin-bottom: 8px; /* 下に隙間を作る */
   resize: none;
   box-sizing: border-box;
   font-family: inherit;
 }
-
 #yt-memo-text:focus {
   outline: none;
   border-color: #3ea6ff;
+}
+
+/* ▼▼▼ 新しいフッターエリア（リンクとショートカット説明） ▼▼▼ */
+.yt-memo-footer {
+  display: flex;
+  justify-content: space-between; /* 左と右に配置 */
+  align-items: center;
+  font-size: 11px;
+  color: #aaa;
+}
+
+/* シートを開くリンク */
+#yt-memo-sheet-link {
+  color: #aaa; /* 目立たない色 */
+  text-decoration: none;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 2px;
+  transition: color 0.2s, background 0.2s;
+}
+/* ホバー時だけ少し主張する */
+#yt-memo-sheet-link:hover {
+  color: #fff;
+  background: #333;
+}
+/* まだリンクがない時（無効状態） */
+#yt-memo-sheet-link.disabled {
+  opacity: 0.5;
+  cursor: default;
+  pointer-events: none;
 }
 
 /* リスト表示エリア */
@@ -78,14 +129,14 @@
   color: #eee;
 }
 
-/* 開閉ボタン（黒いペンアイコン） */
+/* トグルボタン（ペンのアイコン） */
 #yt-memo-toggle {
   position: fixed;
   top: 70px;
-  right: 320px; /* パネルが開いている時の位置 */
+  right: 320px;
   width: 40px;
   height: 40px;
-  background: #111; /* 黒に近いダークグレー */
+  background: #111;
   border: 1px solid #333;
   border-right: none;
   color: #ccc;
@@ -95,17 +146,9 @@
   cursor: pointer;
   z-index: 10000;
   border-radius: 8px 0 0 8px;
-  font-size: 20px; /* アイコンサイズ */
+  font-size: 20px;
   transition: right 0.2s ease-in-out, background 0.2s;
   box-shadow: -2px 2px 5px rgba(0,0,0,0.3);
 }
-
-#yt-memo-toggle:hover {
-  background: #222;
-  color: white;
-}
-
-/* パネルが閉じている時のボタン位置 */
-#yt-memo-panel.hidden + #yt-memo-toggle {
-  right: 0;
-}
+#yt-memo-toggle:hover { background: #222; color: white; }
+#yt-memo-panel.hidden + #yt-memo-toggle { right: 0; }

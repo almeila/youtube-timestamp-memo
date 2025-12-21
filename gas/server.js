@@ -33,24 +33,32 @@ function doPost(e) {
  */
 function doGet(e) {
   const videoId = e.parameter.videoId;
+  
+  // ▼ シートのURLを自動取得
+  const sheetUrl = SPREADSHEET.getUrl();
+
   if (!videoId) return;
 
   const lastRow = SHEET.getLastRow();
-  if (lastRow <= 1) return ContentService.createTextOutput("[]"); // データなし
+  let result = [];
 
-  // 全データを取得してフィルタリング（高速化のためメモリ上で処理）
-  const values = SHEET.getRange(2, 1, lastRow - 1, 3).getValues(); 
-  
-  // C列(リンク)にvideoIdが含まれている行だけ抽出
-  const result = values.filter(row => row[2].includes(videoId)).map(row => ({
-    memo: row[0],
-    title: row[1],
-    link: row[2],
-    // リンクから秒数を抽出して表示用にする (ex. t=120s)
-    timeDisplay: extractTimeDisplay(row[2]) 
-  }));
+  if (lastRow > 1) {
+    const values = SHEET.getRange(2, 1, lastRow - 1, 3).getValues();
+    result = values.filter(row => row[2].includes(videoId)).map(row => ({
+      memo: row[0],
+      title: row[1],
+      link: row[2],
+      timeDisplay: extractTimeDisplay(row[2]) 
+    }));
+  }
 
-  return ContentService.createTextOutput(JSON.stringify(result))
+  // ▼ URLとデータをセットで返す
+  const responseData = {
+    sheetUrl: sheetUrl,
+    memos: result
+  };
+
+  return ContentService.createTextOutput(JSON.stringify(responseData))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
