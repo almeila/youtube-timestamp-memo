@@ -1,25 +1,54 @@
 let currentVideoId = "";
+let observer = null;
 
-// 1. 即座に実行
-main();
+// 1. 読み込み完了時に実行
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startObserver);
+} else {
+    startObserver();
+}
 
-// 2. イベント監視
-document.addEventListener("yt-navigate-finish", main);
-document.addEventListener("yt-page-data-updated", main);
-setInterval(main, 1000);
+function startObserver() {
+    // 初回実行
+    main();
+
+    // 2. 強力な監視 (MutationObserver)
+    // 画面の中身(body)が書き換わったら、すかさず main() を呼ぶ
+    observer = new MutationObserver(() => {
+        main();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+}
 
 function main() {
+  // URLから動画IDを取得
   const urlParams = new URLSearchParams(window.location.search);
   const videoId = urlParams.get('v');
 
-  if (!videoId) return;
-
-  // パネルがないなら作る
-  if (!document.getElementById('yt-memo-panel')) {
-    initPanel();
+  // 動画ページでない場合
+  if (!videoId) {
+    const panel = document.getElementById('yt-memo-panel');
+    const toggleBtn = document.getElementById('yt-memo-toggle');
+    // パネルがあれば隠す（トップページなどで邪魔にならないように）
+    if (panel && !panel.classList.contains('hidden')) panel.classList.add('hidden');
+    if (toggleBtn) toggleBtn.style.display = 'none';
+    return;
   }
 
-  // URLが変わったら読み込む
+  // --- ここから動画ページ用の処理 ---
+
+  // パネルが消えていたら（Youtubeの画面遷移で消されたら）即座に再生成
+  if (!document.getElementById('yt-memo-panel')) {
+    initPanel();
+  } else {
+    // 存在する場合、トグルボタンを表示状態にする
+    const toggleBtn = document.getElementById('yt-memo-toggle');
+    if (toggleBtn && toggleBtn.style.display === 'none') {
+        toggleBtn.style.display = 'flex';
+    }
+  }
+
+  // 動画が変わったことを検知してデータを読み込む
   if (videoId !== currentVideoId) {
     currentVideoId = videoId;
     loadMemos(videoId);
@@ -34,7 +63,6 @@ function initPanel() {
   panel.id = 'yt-memo-panel';
   panel.classList.add('hidden');
 
-  // ▼▼▼ デザイン変更箇所 ▼▼▼
   panel.innerHTML = `
     <div id="yt-memo-header">
       <span>Youtube Memo</span>
@@ -52,7 +80,6 @@ function initPanel() {
 
     <div id="yt-memo-list"></div>
   `;
-  // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
   body.appendChild(panel);
 
@@ -62,7 +89,6 @@ function initPanel() {
   toggleBtn.onclick = () => togglePanel();
   body.appendChild(toggleBtn);
 
-  // 閉じるボタン
   document.getElementById('yt-memo-close').onclick = () => {
     panel.classList.add('hidden');
   };
@@ -83,7 +109,10 @@ function setupEvents() {
   const textarea = document.getElementById('yt-memo-text');
   if(!textarea) return;
 
+  // documentへのイベントは重複登録しないように一度削除してから登録するか、
+  // 下記のようにフラグ管理するのが理想ですが、簡易的にonkeydownプロパティ上書きで対応
   document.onkeydown = (e) => {
+    // 動画ページ以外では反応させない
     if (!window.location.href.includes('watch?v=')) return;
     if (e.ctrlKey && e.code === 'KeyM') {
       e.preventDefault();
@@ -99,8 +128,6 @@ function setupEvents() {
     }
   };
 }
-
-// --- 通信処理 ---
 
 function saveMemo(text) {
   if (!text.trim()) return;
@@ -122,7 +149,7 @@ function saveMemo(text) {
   const originalMsg = "Ctrl + M で開閉";
   
   statusDiv.innerText = "保存中...";
-  statusDiv.style.color = "#3ea6ff"; // 保存中は青色
+  statusDiv.style.color = "#3ea6ff";
 
   if (typeof GAS_API_URL === 'undefined') {
     statusDiv.innerText = "設定エラー";
@@ -139,7 +166,7 @@ function saveMemo(text) {
     statusDiv.innerText = "保存完了";
     setTimeout(() => { 
       statusDiv.innerText = originalMsg; 
-      statusDiv.style.color = "#aaa"; // 元の色に戻す
+      statusDiv.style.color = "#aaa";
     }, 2000);
   })
   .catch(err => {
@@ -151,11 +178,11 @@ function saveMemo(text) {
 
 function loadMemos(videoId) {
   const listDiv = document.getElementById('yt-memo-list');
+  // MutationObserverが速すぎて要素生成前に呼ばれる可能性があるのでガード
   if (!listDiv) return;
 
   listDiv.innerHTML = '<div style="text-align:center; color:#666; padding:20px;">読み込み中...</div>';
 
-  // リンクを初期化（無効化）
   const linkBtn = document.getElementById('yt-memo-sheet-link');
   if (linkBtn) {
       linkBtn.removeAttribute('href');
@@ -170,13 +197,11 @@ function loadMemos(videoId) {
   fetch(`${GAS_API_URL}?videoId=${videoId}`)
     .then(res => res.json())
     .then(data => {
-      // URLセット
       if (data.sheetUrl && linkBtn) {
         linkBtn.href = data.sheetUrl;
-        linkBtn.classList.remove('disabled'); // 有効化
+        linkBtn.classList.remove('disabled');
       }
 
-      // データ取得（新旧互換）
       let memos = [];
       if (Array.isArray(data)) memos = data;
       else if (data.memos) memos = data.memos;
