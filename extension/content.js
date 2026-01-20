@@ -3,27 +3,26 @@ let observer = null;
 
 // 1. 読み込み完了時に実行
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', startObserver);
+  document.addEventListener('DOMContentLoaded', startObserver);
 } else {
-    startObserver();
+  startObserver();
 }
 
 function startObserver() {
-    // 初回実行
-    main();
+  // 初回実行
+  main();
 
-    // 2. 強力な監視 (MutationObserver)
-    // 画面の中身(body)が書き換わったら、すかさず main() を呼ぶ
-    observer = new MutationObserver(() => {
-        main();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+  // 2. 強力な監視 (MutationObserver)
+  // 画面の中身(body)が書き換わったら、すかさず main() を呼ぶ
+  observer = new MutationObserver(() => {
+    main();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 }
 
 function main() {
   // URLから動画IDを取得
-  const urlParams = new URLSearchParams(window.location.search);
-  const videoId = urlParams.get('v');
+  const videoId = getVideoId();
 
   // 動画ページでない場合
   if (!videoId) {
@@ -44,7 +43,7 @@ function main() {
     // 存在する場合、トグルボタンを表示状態にする
     const toggleBtn = document.getElementById('yt-memo-toggle');
     if (toggleBtn && toggleBtn.style.display === 'none') {
-        toggleBtn.style.display = 'flex';
+      toggleBtn.style.display = 'flex';
     }
   }
 
@@ -54,6 +53,22 @@ function main() {
     loadMemos(videoId);
   }
 }
+
+// History API (pushState/replaceState) をフックして画面遷移を検知
+const originalPushState = history.pushState;
+history.pushState = function () {
+  originalPushState.apply(this, arguments);
+  main();
+};
+
+const originalReplaceState = history.replaceState;
+history.replaceState = function () {
+  originalReplaceState.apply(this, arguments);
+  main();
+};
+
+window.addEventListener('popstate', main);
+
 
 function initPanel() {
   if (document.getElementById('yt-memo-panel')) return;
@@ -100,14 +115,18 @@ function togglePanel() {
   const panel = document.getElementById('yt-memo-panel');
   const textarea = document.getElementById('yt-memo-text');
   if (!panel) { initPanel(); return; }
-  
+
   panel.classList.toggle('hidden');
   if (!panel.classList.contains('hidden')) textarea.focus();
 }
 
+// ----------------------------------------------------------------------------------
+// イベント設定
+// ----------------------------------------------------------------------------------
+
 function setupEvents() {
   const textarea = document.getElementById('yt-memo-text');
-  if(!textarea) return;
+  if (!textarea) return;
 
   // documentへのイベントは重複登録しないように一度削除してから登録するか、
   // 下記のようにフラグ管理するのが理想ですが、簡易的にonkeydownプロパティ上書きで対応
@@ -134,20 +153,47 @@ function saveMemo(text) {
 
   const video = document.querySelector('video');
   const currentTime = video ? video.currentTime : 0;
-  const targetTime = Math.max(0, Math.floor(currentTime - 5)); 
-  const videoId = new URLSearchParams(window.location.search).get('v');
-  const link = `https://www.youtube.com/watch?v=${videoId}&t=${targetTime}s`;
-  const title = document.title.replace(" - YouTube", "");
+  const targetTime = Math.max(0, Math.floor(currentTime - 5));
+
+  // YouTube Music対応: URLのパラメータを信頼するシンプルな実装に戻す
+  const videoId = getVideoId();
+
+  const isMusic = window.location.hostname === 'music.youtube.com';
+  const baseUrl = isMusic ? 'https://music.youtube.com' : 'https://www.youtube.com';
+  const link = `${baseUrl}/watch?v=${videoId}&t=${targetTime}s`;
+
+  // YouTube Musicのタイトル取得強化
+  let title = document.title;
+  if (isMusic) {
+    // プレイヤーバーからタイトルとアーティストを取得
+    const titleEl = document.querySelector('ytmusic-player-bar .title') || document.querySelector('ytmusic-player-bar .content-info-wrapper .title');
+    const artistEl = document.querySelector('ytmusic-player-bar .byline') || document.querySelector('ytmusic-player-bar .content-info-wrapper .subtitle');
+
+    if (titleEl) {
+      title = titleEl.innerText;
+      if (artistEl) {
+        // アーティスト名には "• Album • Year" などが含まれることがあるので、単純に結合するか、最初の要素だけ取るなどの調整が可能
+        // ここでは単純に全テキストを結合（改行などはスペースに置換）
+        const artistText = artistEl.innerText.replace(/[\r\n]+/g, ' ').trim();
+        if (artistText) title += ` - ${artistText}`;
+      }
+    } else {
+      // DOMが見つからない場合はdocument.titleへのフォールバック（既存ロジック）
+      title = title.replace(" - YouTube Music", "").replace(" - YouTube", "");
+    }
+  } else {
+    title = title.replace(" - YouTube", "");
+  }
 
   addMemoToList({
     timeDisplay: formatTime(targetTime),
     memo: text,
-    targetTime: targetTime 
+    targetTime: targetTime
   }, true);
 
   const statusDiv = document.getElementById('yt-memo-status');
   const originalMsg = "Ctrl + M で開閉";
-  
+
   statusDiv.innerText = "保存中...";
   statusDiv.style.color = "#3ea6ff";
 
@@ -161,19 +207,22 @@ function saveMemo(text) {
     method: 'POST',
     body: JSON.stringify({ memo: text, title: title, link: link })
   })
-  .then(res => res.json())
-  .then(() => {
-    statusDiv.innerText = "保存完了";
-    setTimeout(() => { 
-      statusDiv.innerText = originalMsg; 
-      statusDiv.style.color = "#aaa";
-    }, 2000);
-  })
-  .catch(err => {
-    console.error(err);
-    statusDiv.innerText = "エラー";
-    statusDiv.style.color = "red";
-  });
+    .then(res => res.json())
+    .then(() => {
+      statusDiv.innerText = "保存完了";
+      // GASへの保存完了・反映を確実にするためリストを再読み込み
+      loadMemos(videoId);
+
+      setTimeout(() => {
+        statusDiv.innerText = originalMsg;
+        statusDiv.style.color = "#aaa";
+      }, 2000);
+    })
+    .catch(err => {
+      console.error(err);
+      statusDiv.innerText = "エラー";
+      statusDiv.style.color = "red";
+    });
 }
 
 function loadMemos(videoId) {
@@ -185,8 +234,8 @@ function loadMemos(videoId) {
 
   const linkBtn = document.getElementById('yt-memo-sheet-link');
   if (linkBtn) {
-      linkBtn.removeAttribute('href');
-      linkBtn.classList.add('disabled');
+    linkBtn.removeAttribute('href');
+    linkBtn.classList.add('disabled');
   }
 
   if (typeof GAS_API_URL === 'undefined') {
@@ -205,13 +254,13 @@ function loadMemos(videoId) {
       let memos = [];
       if (Array.isArray(data)) memos = data;
       else if (data.memos) memos = data.memos;
-      
+
       const currentListDiv = document.getElementById('yt-memo-list');
       if (!currentListDiv) return;
 
       currentListDiv.innerHTML = '';
       if (memos.length === 0) {
-         currentListDiv.innerHTML = '<div style="text-align:center; color:#444; padding:20px;">メモはありません</div>';
+        currentListDiv.innerHTML = '<div style="text-align:center; color:#444; padding:20px;">メモはありません</div>';
       }
       memos.forEach(item => {
         const match = item.link.match(/t=(\d+)s/);
@@ -236,7 +285,7 @@ function addMemoToList(item, prepend = false) {
     if (video) { video.currentTime = item.targetTime; video.play(); }
   };
   if (prepend) {
-    if(listDiv.querySelector('div')?.innerText === "メモはありません") listDiv.innerHTML = "";
+    if (listDiv.querySelector('div')?.innerText === "メモはありません") listDiv.innerHTML = "";
     listDiv.insertBefore(row, listDiv.firstChild);
   } else {
     listDiv.appendChild(row);
@@ -247,4 +296,10 @@ function formatTime(seconds) {
   const min = Math.floor(seconds / 60);
   const sec = seconds % 60;
   return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
+function getVideoId() {
+  // フォールバック or YouTube本家
+  // シンプルにURLパラメータから取得する（SPAによるID不一致は許容する）
+  return new URLSearchParams(window.location.search).get('v');
 }
