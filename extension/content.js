@@ -210,8 +210,8 @@ function saveMemo(text) {
     .then(res => res.json())
     .then(() => {
       statusDiv.innerText = "保存完了";
-      // GASへの保存完了・反映を確実にするためリストを再読み込み
-      loadMemos(videoId);
+      // リストの自動リロードはUXを損なうため削除 (楽観的UI更新のみとする)
+      // loadMemos(videoId);
 
       setTimeout(() => {
         statusDiv.innerText = originalMsg;
